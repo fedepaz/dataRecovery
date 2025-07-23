@@ -1,105 +1,51 @@
-# dataRecovery
+# 📱 Android Backup Script for Kali Linux
 
-# Use Rufus (Windows) to create Kali Live USB with persistence
+# auto_backup_qw.sh
 
-# Allocate ≥4GB persistence storage
+A robust, dual-target backup solution for Android devices designed to run from Kali Linux Live USB. Safely backs up photos, contacts, and WhatsApp data to both Windows partitions and USB sticks.
 
-sudo apt update && sudo apt full-upgrade -y
-sudo apt install adb mtp-tools jmtpfs exfat-fuse exfat-utils tree -y
+---
 
-# Troubleshooting Tips
+## 📌 Features
 
-# If script fails:
+✅ **Dual Backup Architecture**  
+Backs up to both Windows and USB targets simultaneously
 
-# Manual Mount:
+✅ **Automatic Detection**  
+Supports dynamic detection of Windows partitions and USB devices
 
-# Open Windows File Explorer
+✅ **Flexible Connection Modes**  
+Works with:
 
-# Note drive letter (e.g., D:)
+- ADB (USB Debugging enabled)
+- MTP (File Transfer mode)
 
-# In Kali terminal:
+✅ **Safe & Reliable**
 
-sudo mkdir /mnt/windows_backups
-sudo mount -t ntfs-3g /dev/sdb1 /mnt/windows_backups # Replace sdb1 with your partition
+- Read-only mounts to prevent data corruption
+- Verifies USB backup completion
+- Detailed logging for troubleshooting
 
-# Force MTP Mode:
+✅ **Portable**  
+Runs from Kali Live USB on any laptop/desktop
 
-Edit script: change adb_backup to mtp_backup
+---
 
-# Update MTP ID:
+## 🛠️ Requirements
 
-Get phone ID:
+Before using, ensure you have:
 
-lsusb | grep -i samsung # Replace with your brand
-Add to /etc/udev/rules.d/51-android.rules
+### Hardware
 
-## This system gives you a "plug and backup" solution with hard copies stored directly on Windows - perfect for weekly maintenance!
+- Kali Linux Live USB (with persistence)
+- Target devices:
+  - Windows partition (NTFS/FAT32/exFAT)
+  - Android device (USB cable)
 
-# Part 2: Pre-requisite Setup
+### Software
 
-## Install Required Tools (One-time setup in Kali):
+Install dependencies with:
 
-sudo apt install rclone python3-pip
-pip3 install gphotos-sync
-
-# Configure Google Access:
-
-# Authenticate Google services
-
-rclone config # Follow prompts to connect Google Drive
-gphotos-sync --init # Follow authentication steps
-
-# Part 4: Location History & Routes Extraction
-
-# For your route history and location data:
-
-# Export Location History:
-
-# In Takeout: Select "Location History" → JSON format
-
-# Process Location Data:
-
-# Convert JSON to KML for Google Earth
-
-sudo apt install gpsbabel
-gpsbabel -i geojson -f LocationHistory.json -o kml -F locations.kml
-
-# Generate travel map
-
-python3 -m pip install pandas geopandas matplotlib
-Create map_generator.py:
-
-python
-import pandas as pd
-import matplotlib.pyplot as plt
-
-df = pd.read_json('LocationHistory.json')
-df = df[df['accuracy'] < 100] # Filter inaccurate points
-
-plt.figure(figsize=(12,8))
-plt.scatter(df['longitude'], df['latitude'], s=0.1, alpha=0.5)
-plt.savefig('travel_map.png', dpi=300)
-
-## Part 5: WhatsApp Backup Handling
-
-## For encrypted WhatsApp backups from Google Drive:
-
-# Decrypting Backups:
-
-# Install decryption tool
-
-git clone https://github.com/EliteAndroidApps/WhatsApp-Key-DB-Extractor.git
-
-# Extract when needed (requires rooted phone for key)
-
-python3 extract.py -i ~/backups/whatsapp_google/msgstore.db.crypt12
-
-# Alternative: Local Database Backup:
-
-# Add to phone backup section:
-
-bash
-
-# Backup WhatsApp databases even if not synced to cloud
-
-adb pull /sdcard/WhatsApp/Databases/ "$BACKUP_DIR/whatsapp_local"
+```bash
+sudo apt install adb jmtpfs ntfs-3g exfat-fuse
+```
