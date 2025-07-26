@@ -1,38 +1,38 @@
 #!/usr/bin/env bash
 
-# phone_backup.sh - Enhanced Android backup to both Windows and USB
-# v2.1 - Supports dual backups, dynamic detection, and error resilience
+# phone_backup.sh - Respaldo Android a Windows y USB
+# v2.2 - Soporta respaldos duales, detección dinámica y resiliencia
 
 set -euo pipefail
 IFS=$'\n\t'
 
-# ============ Configuration ============
+# ============ Configuración ============
 SCRIPT_NAME="$(basename "$0")"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-LOGFILE_SUFFIX="backup.log"
+LOGFILE_SUFFIX="respaldo.log"
 DEBUG=${DEBUG:-0}
 [ "$DEBUG" -eq 1 ] && set -x
 
-# ============ Paths ============
+# ============ Rutas ============
 declare -A BACKUP_TARGETS=(
     ["WINDOWS"]="/mnt/windows_drive"
-    ["USB"]="/mnt/usb_stick"
+    ["USB"]="/root/android_backup"
 )
 
-# ============ Helpers ============
+# ============ Ayudantes ============
 log() {
     echo "[INFO] $(date '+%T') $*"
 }
 
 debug() {
-    [ "$DEBUG" -eq 1 ] && echo "[DEBUG] $*"
+    [ "$DEBUG" -eq 1 ] && echo "[DEPURAR] $*"
 }
 
 errlog() {
     echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $*" >&2
 }
 
-# ============ Device Mounting ============
+# ============ Montaje de Dispositivos ============
 mount_device() {
     local target=$1
     local dev=$2
@@ -55,9 +55,9 @@ detect_and_mount() {
     local target=$1
     local -n success_ref=$2
     
-    debug "Attempting to mount to $target"
+    debug "Intentando montar en $target"
     
-    # Common Windows partitions
+    # Particiones Windows comunes
     for dev in /dev/sda[0-9]* /dev/nvme0n1p[0-9]* /dev/mmcblk0p[0-9]*; do
         [[ -b "$dev" ]] || continue
         
@@ -65,39 +65,36 @@ detect_and_mount() {
         fs_type=${fs_type:-ntfs}
         
         if mount_device "$target" "$dev" "$fs_type"; then
-            log "Mounted $dev ($fs_type) to $target"
+            log "Montado $dev ($fs_type) en $target"
             success_ref+=("$target")
             return 0
         fi
     done
     
-    errlog "Failed to mount device to $target"
+    errlog "No se pudo montar dispositivo en $target"
     return 1
 }
 
-# ============ Backup Functions ============
+# ============ Funciones de Respaldo ============
 adb_backup() {
     local target=$1
-    local photos="$target/photos"
-    local contacts="$target/contacts"
+    local photos="$target/fotos"
+    local contacts="$target/contactos"
     local whatsapp="$target/whatsapp"
     
     mkdir -p "$photos" "$contacts" "$whatsapp"
     
-    log "Pulling photos from device..."
-    adb pull -a /sdcard/DCIM "$photos/" || errlog "DCIM pull failed"
-    adb pull -a /sdcard/Pictures "$photos/" || errlog "Pictures pull failed"
+    log "Extrayendo fotos del dispositivo..."
+    adb pull -a /sdcard/DCIM "$photos/" || errlog "Fallo al extraer DCIM"
+    adb pull -a /sdcard/Pictures "$photos/" || errlog "Fallo al extraer Imágenes"
     
-    log "Exporting contacts..."
+    log "Exportando contactos..."
     adb shell am start -a android.intent.action.DUMP --es com.android.contacts ALL > /dev/null 2>&1
     sleep 10
-    adb pull /sdcard/contacts.vcf "$contacts/" || errlog "Contacts export failed"
+    adb pull /sdcard/contacts.vcf "$contacts/" || errlog "Fallo al exportar contactos"
     
-    log "Pulling WhatsApp data..."
-    adb pull -a /sdcard/WhatsApp "$whatsapp/" || errlog "WhatsApp pull failed"
-    
-    # Optional: Full ADB backup
-    # adb backup -apk -shared -all -f "$target/full_backup.ab" || errlog "Full backup failed"
+    log "Extrayendo datos de WhatsApp..."
+    adb pull -a /sdcard/WhatsApp "$whatsapp/" || errlog "Fallo al extraer WhatsApp"
 }
 
 mtp_backup() {
@@ -107,51 +104,51 @@ mtp_backup() {
     mkdir -p "$phone_mount"
     
     if ! jmtpfs "$phone_mount" -o ro; then
-        errlog "MTP mount failed"
+        errlog "Fallo al montar MTP"
         return 1
     fi
     
-    log "Copying media via MTP..."
-    rsync -a --info=progress2 "$phone_mount/Internal shared storage/DCIM/" "$target/photos/" || true
-    rsync -a --info=progress2 "$phone_mount/Internal shared storage/Pictures/" "$target/photos/" || true
-    cp "$phone_mount/Internal shared storage/contacts.vcf" "$target/contacts/" || true
+    log "Copiando multimedia vía MTP..."
+    rsync -a --info=progress2 "$phone_mount/Internal shared storage/DCIM/" "$target/fotos/" || true
+    rsync -a --info=progress2 "$phone_mount/Internal shared storage/Pictures/" "$target/fotos/" || true
+    cp "$phone_mount/Internal shared storage/contacts.vcf" "$target/contactos/" || true
     rsync -a --info=progress2 "$phone_mount/Internal shared storage/WhatsApp/" "$target/whatsapp/" || true
     
     fusermount -u "$phone_mount"
     rm -rf "$phone_mount"
 }
 
-# ============ Main Execution ============
+# ============ Ejecución Principal ============
 main() {
     local -a successful_mounts=()
     local -a failed_mounts=()
     
-    # Mount all targets
+    # Montar todos los objetivos
     for target_name in "${!BACKUP_TARGETS[@]}"; do
         target_path="${BACKUP_TARGETS[$target_name]}"
         if detect_and_mount "$target_path" successful_mounts; then
-            log "Successfully mounted $target_name device"
+            log "¡$target_name montado correctamente!"
         else
             failed_mounts+=("$target_name")
-            errlog "$target_name backup will not be available"
+            errlog "$target_name no estará disponible para respaldo"
         fi
     done
     
-    # Require at least one successful mount
+    # Requerir al menos un montaje exitoso
     if [ ${#successful_mounts[@]} -eq 0 ]; then
-        errlog "No valid backup devices found. Exiting."
+        errlog "No se encontraron dispositivos válidos. Saliendo."
         exit 1
     fi
     
-    # Backup preparation
-    BACKUP_ROOT="Phone_Backups/backup_$TIMESTAMP"
+    # Preparación del respaldo
+    BACKUP_ROOT="Respaldo_Phone/backup_$TIMESTAMP"
     
-    # Process each successful mount
+    # Procesar cada montaje exitoso
     for mount_point in "${successful_mounts[@]}"; do
         full_path="$mount_point/$BACKUP_ROOT"
-        mkdir -p "$full_path"/{photos,contacts,whatsapp}
+        mkdir -p "$full_path"/{fotos,contactos,whatsapp}
         
-        log "Starting backup to $mount_point ($full_path)"
+        log "Iniciando respaldo en $mount_point ($full_path)"
         
         if adb devices | grep -q "device$"; then
             adb_backup "$full_path"
@@ -159,29 +156,34 @@ main() {
             mtp_backup "$full_path"
         fi
         
-        # Verify backup
-        if [ -n "$(ls -A "$full_path/photos")" ]; then
-            log "Backup completed successfully to $mount_point"
+        # Verificar respaldo
+        if [ -n "$(ls -A "$full_path/fotos")" ]; then
+            log "¡Respaldo completado con éxito en $mount_point!"
         else
-            errlog "Backup appears empty for $mount_point"
+            errlog "El respaldo parece vacío en $mount_point"
         fi
         
-        # Unmount after backup
-        sudo umount "$mount_point"
-        log "Unmounted $mount_point"
+        # Desmontar después del respaldo (solo para Windows)
+        if [[ "$mount_point" == "/mnt/windows_drive" ]]; then
+            sudo umount "$mount_point"
+            log "Desmontado $mount_point"
+        fi
     done
     
-    # Final summary
-    log "Backup completed to ${#successful_mounts[@]} devices"
-    [ ${#failed_mounts[@]} -gt 0 ] && log "Failed mounts: ${failed_mounts[*]}"
+    # Resumen final
+    log "Respaldo completado en ${#successful_mounts[@]} dispositivos"
+    [ ${#failed_mounts[@]} -gt 0 ] && log "Dispositivos fallidos: ${failed_mounts[*]}"
     
-    # Always verify USB backup
+    # Siempre verificar respaldo USB
     if [[ " ${successful_mounts[*]} " =~ " ${BACKUP_TARGETS[USB]} " ]]; then
-        log "USB backup verified at ${BACKUP_TARGETS[USB]}/$BACKUP_ROOT"
+        log "✅ ¡Respaldo USB verificado en ${BACKUP_TARGETS[USB]}/$BACKUP_ROOT!"
     else
-        errlog "USB backup NOT completed"
+        errlog "❌ ¡FALLO el respaldo USB!"
         exit 1
     fi
+    
+    log "¡Respaldo FINALIZADO con ÉXITO!"
+    log "Puedes desconectar los dispositivos"
 }
 
 main "$@"
