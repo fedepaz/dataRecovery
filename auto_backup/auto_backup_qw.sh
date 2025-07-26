@@ -8,7 +8,7 @@ IFS=$'\n\t'
 
 # ============ Configuración ============
 SCRIPT_NAME="$(basename "$0")"
-TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+TIMESTAMP="$(date +%d%m%Y)"
 LOGFILE_SUFFIX="respaldo.log"
 DEBUG=${DEBUG:-0}
 [ "$DEBUG" -eq 1 ] && set -x
@@ -16,7 +16,7 @@ DEBUG=${DEBUG:-0}
 # ============ Rutas ============
 declare -A BACKUP_TARGETS=(
     ["WINDOWS"]="/mnt/windows_drive"
-    ["USB"]="/root/android_backup"
+    ["USB"]="${HOME}/Documents/backUps" 
 )
 
 # ============ Ayudantes ============
@@ -54,6 +54,19 @@ mount_device() {
 detect_and_mount() {
     local target=$1
     local -n success_ref=$2
+    
+    # Para destino USB (tu directorio en Documents)
+    if [[ "$target" == *"backUps"* ]]; then
+        # Verificamos/creamos el directorio
+        if mkdir -p "$target" 2>/dev/null; then
+            success_ref+=("$target")
+            log "Usando directorio local: $target"
+            return 0
+        else
+            errlog "No se puede escribir en $target - verifica permisos"
+            return 1
+        fi
+    fi
     
     debug "Intentando montar en $target"
     
