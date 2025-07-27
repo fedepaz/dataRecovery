@@ -16,7 +16,7 @@ DEBUG=${DEBUG:-0}
 # ============ Rutas ============
 declare -A BACKUP_TARGETS=(
     ["WINDOWS"]="/mnt/windows_drive"
-    ["USB"]="${HOME}/Documents/backUps" 
+    ["USB"]="${XDG_HOME_DIR:-$HOME}/Documents/backUps"
 )
 
 # ============ Ayudantes ============
@@ -42,7 +42,7 @@ mount_device() {
     
     case "$fs_type" in
         ntfs|exfat|vfat)
-            sudo mount -t "$fs_type" -o ro "$dev" "$target" 2>/dev/null
+            sudo mount -t "$fs_type" -o rw,uid=$UID,gid=$GID,fmask=113,dmask=022 "$dev" "$target" 2>/dev/null
             return $?
             ;;
         *)
@@ -58,7 +58,7 @@ detect_and_mount() {
     # Para destino USB (tu directorio en Documents)
     if [[ "$target" == *"backUps"* ]]; then
         # Verificamos/creamos el directorio
-        if mkdir -p "$target" 2>/dev/null; then
+        if mkdir -p "$target" && chmod 755 "$target" 2>/dev/null; then
             success_ref+=("$target")
             log "Usando directorio local: $target"
             return 0
@@ -78,9 +78,16 @@ detect_and_mount() {
         fs_type=${fs_type:-ntfs}
         
         if mount_device "$target" "$dev" "$fs_type"; then
-            log "Montado $dev ($fs_type) en $target"
-            success_ref+=("$target")
-            return 0
+            # Verifica que sea escribible
+            if touch "$target/test" 2>/dev/null; then
+                rm -rf "$target/test"
+                log "Montado $dev ($fs_type) en $target"
+                success_ref+=("$target")
+                return 0
+            else
+                errlog "No se puede escribir en $target"
+                sudo umount "$target" 2>/dev/null
+            fi
         fi
     done
     
@@ -133,6 +140,7 @@ mtp_backup() {
 
 # ============ Ejecución Principal ============
 main() {
+    
     local -a successful_mounts=()
     local -a failed_mounts=()
     
